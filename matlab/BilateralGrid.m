@@ -15,10 +15,17 @@ classdef BilateralGrid
         S           = []
         blurs       = {}
         max_val     = 255.0
+        
+        numpy  = 0
+        coords = []
     end
     
     methods
-        function self = BilateralGrid(img, sig_sp, sig_l, sig_ch)
+        function self = BilateralGrid(img, sig_sp, sig_l, sig_ch, numpy)
+            if nargin < 5 || isempty(numpy)
+                numpy = 0;
+            end
+            self.numpy = numpy;
             % convert rgb to special ycbcr using full channel ranges
             img = rgb2ycbcr_full(img);
             if nargin > 1 && ~isempty(sig_sp)
@@ -32,12 +39,24 @@ classdef BilateralGrid
             end
             [h, w, ~]   = size(img);
             [Iy, Ix]    = meshgrid(1:w, 1:h);
-            x_coords    = round(Ix / self.sigma_sp);
-            y_coords    = round(Iy / self.sigma_sp);
-            l_coords    = round(img(:, :, 1) / self.sigma_lum);
-            ch_coords   = round(img(:, :, 2:3) / self.sigma_chr);
-            coords  = cat(3, x_coords, y_coords, l_coords, ch_coords);
-            coords_flat = reshape(coords, [h * w, 5]);
+            if numpy
+                Ix = Ix - 1;
+                Iy = Iy - 1;
+            end
+            x_coords    = floor(Ix / self.sigma_sp);
+            y_coords    = floor(Iy / self.sigma_sp);
+            l_coords    = floor(img(:, :, 1) / self.sigma_lum);
+            ch_coords   = floor(img(:, :, 2:3) / self.sigma_chr);
+            if numpy
+                % permutation to have similar data as numpy
+                coords  = cat(3, y_coords, x_coords, l_coords, ch_coords);
+                coords_flat = reshape(permute(coords, [2, 1, 3]), [h * w, 5]);
+            else
+                % simplest implementation, differs from numpy order
+                coords  = cat(3, x_coords, y_coords, l_coords, ch_coords);
+                coords_flat = reshape(coords, [h * w, 5]);
+            end
+            self.coords = coords;
             self.npixels = h * w;
             self.dim     = 5;
             self.hash_vec = (self.max_val .^ (0:4)); % + 1?
@@ -115,12 +134,18 @@ classdef BilateralGrid
             if ~isfloat(x)
                 x = im2double(x);
             end
+            if self.numpy
+                x = permute(x, [2, 1, 3]);
+            end
             x_dim = size(x);
             x = reshape(x, self.npixels, []);
             % apply bilateral filter to an input x
             z = self.slice(self.blur(self.splat(x))) ./ ...
                 self.slice(self.blur(self.splat(ones(size(x)))));
             z = reshape(z, x_dim);
+            if self.numpy
+                z = permute(z, [2, 1, 3]);
+            end
         end
     end
     
@@ -135,7 +160,7 @@ function conv = rgb2ycbcr_full( img )
     A = [ 0.299, 0.587, 0.114; ...
          -0.168736, -0.331264,  0.5; ...
          0.5, -0.418688, -0.081312 ...
-    ];
+    ]';
     b = [0, 128, 128];
     conv = reshape(img, [], 3) * A;
     conv = bsxfun(@plus, conv, reshape(b, 1, []));

@@ -22,6 +22,14 @@ classdef BilateralSolver
         end
         
         function [xhat, info] = solve(self, x, w, tol, maxiter)
+            %SOLVE(x, w, tol, maxiter)
+            %
+            % INPUT
+            %   - x         (h,w,N)     target image to improve
+            %   - w         (h,w)       confidence image
+            %   - tol       (1,1)       tolerance constant
+            %   - maxiter   (1,1)       maximum number of iterations
+            %
             if nargin < 5
                 maxiter = [];
             end
@@ -34,6 +42,10 @@ classdef BilateralSolver
             end
             if ~isfloat(x)
                 x = im2double(x);
+            end
+            if self.grid.numpy
+                x = permute(x, [2, 1, 3]);
+                w = permute(w, [2, 1, 3]);
             end
             x_dim = size(x);
             x = reshape(x, self.grid.npixels, []);
@@ -56,6 +68,9 @@ classdef BilateralSolver
             end
             xhat = self.grid.slice(yhat);
             xhat = reshape(xhat, x_dim);
+            if self.grid.numpy
+                xhat = permute(xhat, [2, 1, 3]);
+            end
         end
     end
     
